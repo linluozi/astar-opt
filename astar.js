@@ -21,16 +21,15 @@ function pathTo(node) {
   var curr = node;
   var path = [];
   while (curr.parent) {
-    path.unshift(curr);
+    path.push(curr);
     curr = curr.parent;
   }
+  path.reverse();
   return path;
 }
 
 function getHeap() {
-  return new BinaryHeap(function(node) {
-    return node.f;
-  });
+  return new BinaryHeap();
 }
 
 var astar = {
@@ -50,19 +49,66 @@ var astar = {
     options = options || {};
     var heuristic = options.heuristic || astar.heuristics.manhattan;
     var closest = options.closest || false;
-
     var openHeap = getHeap();
     var closestNode = start; // set the start node to be the closest if required
+    var diagonal = graph.diagonal;
+    var grid = graph.grid;
+    // Custom graphs (see the CityGraph test) only implement neighbors(); the
+    // inlined expansion below is used for the built-in rectangular Grid.
+    var isGrid = !!grid && typeof diagonal === 'boolean';
+    var currentNode;
 
+    // The start node can be a node that was expanded in an earlier search;
+    // its parent chain must be cut or pathTo() would walk into stale links.
+    start.f = 0;
+    start.g = 0;
+    start.parent = null;
+    start.closed = false;
+    start.visited = false;
     start.h = heuristic(start, end);
     graph.markDirty(start);
 
     openHeap.push(start);
 
-    while (openHeap.size() > 0) {
+    // One closure per search, not per node. stepCost is precomputed on the
+    // grid path and delegated to node.getCost() for custom graphs.
+    function visit(neighbor, stepCost) {
+      if (neighbor.closed || neighbor.weight === 0) {
+        return;
+      }
+      var gScore = currentNode.g + stepCost;
+      var beenVisited = neighbor.visited;
+
+      if (!beenVisited || gScore < neighbor.g) {
+        neighbor.visited = true;
+        neighbor.parent = currentNode;
+        if (!beenVisited) {
+          // h is immutable for a given search, so compute it exactly once.
+          neighbor.h = heuristic(neighbor, end);
+        }
+        neighbor.g = gScore;
+        neighbor.f = neighbor.g + neighbor.h;
+        if (!beenVisited) {
+          graph.markDirty(neighbor);
+        }
+        if (closest) {
+          if (neighbor.h < closestNode.h || (neighbor.h === closestNode.h && neighbor.g < closestNode.g)) {
+            closestNode = neighbor;
+          }
+        }
+
+        if (!beenVisited) {
+          openHeap.push(neighbor);
+        } else {
+          openHeap.rescoreElement(neighbor);
+        }
+      }
+    }
+
+    while (openHeap.content.length > 0) {
 
       // Grab the lowest f(x) to process next.  Heap keeps this sorted for us.
-      var currentNode = openHeap.pop();
+      currentNode = openHeap.pop();
 
       // End case -- result has been found, return the traced path.
       if (currentNode === end) {
@@ -72,46 +118,34 @@ var astar = {
       // Normal case -- move currentNode from open to closed, process each of its neighbors.
       currentNode.closed = true;
 
-      // Find all neighbors for the current node.
-      var neighbors = graph.neighbors(currentNode);
+      var x = currentNode.x;
+      var y = currentNode.y;
 
-      for (var i = 0, il = neighbors.length; i < il; ++i) {
-        var neighbor = neighbors[i];
+      if (isGrid) {
+        // Same order as Graph.neighbors(): W, E, S, N, SW, SE, NW, NE.
+        var col, nb;
+        col = grid[x - 1];
+        if (col) { nb = col[y]; if (nb) visit(nb, nb.weight); }
+        col = grid[x + 1];
+        if (col) { nb = col[y]; if (nb) visit(nb, nb.weight); }
+        col = grid[x];
+        nb = col[y - 1]; if (nb) visit(nb, nb.weight);
+        nb = col[y + 1]; if (nb) visit(nb, nb.weight);
 
-        if (neighbor.closed || neighbor.isWall()) {
-          // Not a valid node to process, skip to next neighbor.
-          continue;
+        if (diagonal) {
+          var colL = grid[x - 1];
+          var colR = grid[x + 1];
+          // Same order as Graph.neighbors(): SW, SE, NW, NE.
+          if (colL) { nb = colL[y - 1]; if (nb) visit(nb, nb.weight * 1.41421); }
+          if (colR) { nb = colR[y - 1]; if (nb) visit(nb, nb.weight * 1.41421); }
+          if (colL) { nb = colL[y + 1]; if (nb) visit(nb, nb.weight * 1.41421); }
+          if (colR) { nb = colR[y + 1]; if (nb) visit(nb, nb.weight * 1.41421); }
         }
-
-        // The g score is the shortest distance from start to current node.
-        // We need to check if the path we have arrived at this neighbor is the shortest one we have seen yet.
-        var gScore = currentNode.g + neighbor.getCost(currentNode);
-        var beenVisited = neighbor.visited;
-
-        if (!beenVisited || gScore < neighbor.g) {
-
-          // Found an optimal (so far) path to this node.  Take score for node to see how good it is.
-          neighbor.visited = true;
-          neighbor.parent = currentNode;
-          neighbor.h = neighbor.h || heuristic(neighbor, end);
-          neighbor.g = gScore;
-          neighbor.f = neighbor.g + neighbor.h;
-          graph.markDirty(neighbor);
-          if (closest) {
-            // If the neighbour is closer than the current closestNode or if it's equally close but has
-            // a cheaper path than the current closest node then it becomes the closest node
-            if (neighbor.h < closestNode.h || (neighbor.h === closestNode.h && neighbor.g < closestNode.g)) {
-              closestNode = neighbor;
-            }
-          }
-
-          if (!beenVisited) {
-            // Pushing to heap will put it in proper place based on the 'f' value.
-            openHeap.push(neighbor);
-          } else {
-            // Already seen the node, but since it has been rescored we need to reorder it in the heap
-            openHeap.rescoreElement(neighbor);
-          }
+      } else {
+        var neighbors = graph.neighbors(currentNode);
+        for (var i = 0, il = neighbors.length; i < il; ++i) {
+          var n = neighbors[i];
+          visit(n, n.getCost(currentNode));
         }
       }
     }
@@ -132,7 +166,7 @@ var astar = {
     },
     diagonal: function(pos0, pos1) {
       var D = 1;
-      var D2 = Math.sqrt(2);
+      var D2 = Math.SQRT2;
       var d1 = Math.abs(pos1.x - pos0.x);
       var d2 = Math.abs(pos1.y - pos0.y);
       return (D * (d1 + d2)) + ((D2 - (2 * D)) * Math.min(d1, d2));
@@ -180,10 +214,18 @@ Graph.prototype.init = function() {
 };
 
 Graph.prototype.cleanDirty = function() {
-  for (var i = 0; i < this.dirtyNodes.length; i++) {
-    astar.cleanNode(this.dirtyNodes[i]);
+  var dirty = this.dirtyNodes;
+  for (var i = 0; i < dirty.length; i++) {
+    var node = dirty[i];
+    // Only these two flags are read before a node is (re)initialised.
+    // g/h/f/parent are always written on the first visit of a search, so
+    // resetting them here would be dead stores on every touched node.
+    node.visited = false;
+    node.closed = false;
   }
-  this.dirtyNodes = [];
+  // Reuse the backing array: a fresh array per search means ~0.5 MB of
+  // garbage on large maps and shows up as GC time.
+  dirty.length = 0;
 };
 
 Graph.prototype.markDirty = function(node) {
@@ -278,9 +320,8 @@ GridNode.prototype.isWall = function() {
   return this.weight === 0;
 };
 
-function BinaryHeap(scoreFunction) {
+function BinaryHeap() {
   this.content = [];
-  this.scoreFunction = scoreFunction;
 }
 
 BinaryHeap.prototype = {
@@ -327,7 +368,7 @@ BinaryHeap.prototype = {
       this.content[i] = end;
       end._heapIndex = i;
 
-      if (this.scoreFunction(end) < this.scoreFunction(node)) {
+      if (end.f < node.f) {
         this.sinkDown(i);
       } else {
         this.bubbleUp(i);
@@ -358,7 +399,7 @@ BinaryHeap.prototype = {
       var parentN = ((n + 1) >> 1) - 1;
       var parent = this.content[parentN];
       // Swap the elements if the parent is greater.
-      if (this.scoreFunction(element) < this.scoreFunction(parent)) {
+      if (element.f < parent.f) {
         this.content[parentN] = element;
         this.content[n] = parent;
         element._heapIndex = parentN;
@@ -376,7 +417,7 @@ BinaryHeap.prototype = {
     // Look up the target element and its score.
     var length = this.content.length;
     var element = this.content[n];
-    var elemScore = this.scoreFunction(element);
+    var elemScore = element.f;
 
     while (true) {
       // Compute the indices of the child elements.
@@ -389,7 +430,7 @@ BinaryHeap.prototype = {
       if (child1N < length) {
         // Look it up and compute its score.
         var child1 = this.content[child1N];
-        child1Score = this.scoreFunction(child1);
+        child1Score = child1.f;
 
         // If the score is less than our element's, we need to swap.
         if (child1Score < elemScore) {
@@ -400,7 +441,7 @@ BinaryHeap.prototype = {
       // Do the same checks for the other child.
       if (child2N < length) {
         var child2 = this.content[child2N];
-        var child2Score = this.scoreFunction(child2);
+        var child2Score = child2.f;
         if (child2Score < (swap === null ? elemScore : child1Score)) {
           swap = child2N;
         }
