@@ -2,7 +2,7 @@
 
 Scenarios: 104, mismatches: 0
 
-Sum of medians: 432.7 ms -> 319.1 ms (1.36×)
+Sum of per-scenario medians: 432.7 ms -> 319.1 ms (1.36×)
 
 ## By suite
 
