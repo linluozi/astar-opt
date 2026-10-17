@@ -1,0 +1,73 @@
+{
+ "meta": {
+  "impl": "E:\\WorkBuddy-Work\\WorkBuddy-0\\astar-lab\\work\\bench\\baseline\\astar-0.4.1.js",
+  "sha256_16": "14171f5033482617",
+  "implBytes": 11478,
+  "node": "v22.12.0",
+  "v8": "12.4.254.21-node.21",
+  "platform": "win32",
+  "arch": "x64",
+  "cpus": "AMD Ryzen 7 H 255 w/Radeon780M Graphics        ",
+  "cpuCount": 16,
+  "totalMemGB": 16.4,
+  "startedAt": "2026-10-17T08:20:55.294Z",
+  "durationSec": 1.3,
+  "suites": [
+   "diagonal"
+  ],
+  "repsOverride": null,
+  "isolation": "one process per scenario"
+ },
+ "records": [
+  {
+   "id": "diagonal|256|octile|s31",
+   "suite": "diagonal",
+   "size": 256,
+   "density": 0.2,
+   "diagonal": true,
+   "seed": 31,
+   "weights": false,
+   "heuristic": "diagonal",
+   "note": "",
+   "msMedian": 3.0091999999999643,
+   "msP95": 6.1089999999999804,
+   "msMin": 1.1804999999999382,
+   "expanded": 3390,
+   "touched": 4076,
+   "cost": 332.6409400000008,
+   "costMin": 332.6409400000008,
+   "costMax": 332.6409400000008,
+   "optimalCost": 332.6409400000008,
+   "gap": 0,
+   "length": 244,
+   "valid": true,
+   "heapDeltaBytes": 2421216,
+   "optimalExpanded": 52143
+  },
+  {
+   "id": "diagonal|256|octile|s32",
+   "suite": "diagonal",
+   "size": 256,
+   "density": 0.2,
+   "diagonal": true,
+   "seed": 32,
+   "weights": false,
+   "heuristic": "diagonal",
+   "note": "",
+   "msMedian": 4.9687999999999874,
+   "msP95": 6.845100000000002,
+   "msMin": 1.7886000000000877,
+   "expanded": 4153,
+   "touched": 4813,
+   "cost": 333.8125200000008,
+   "costMin": 333.8125200000008,
+   "costMax": 333.8125200000008,
+   "optimalCost": 333.81252000000086,
+   "gap": -1.7028546101508677e-16,
+   "length": 246,
+   "valid": true,
+   "heapDeltaBytes": 2973784,
+   "optimalExpanded": 52147
+  }
+ ]
+}

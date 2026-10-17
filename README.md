@@ -2,6 +2,13 @@
 
 ## An implementation of the A* Search Algorithm in JavaScript
 
+> **Performance fork:** this branch removes the O(n) `indexOf` scan from the
+> binary heap and the per-node neighbour array allocation, while keeping the
+> same API and the same search results. Median speedup is 1.64× across 104
+> scenarios, 1.9× at 512×512, with zero cost/expansion mismatches. See
+> [OPTIMIZATION.md](OPTIMIZATION.md) for evidence, rejected ideas and repro
+> commands.
+
 See a demo at http://www.briangrinstead.com/files/astar/
 
 ## Sample Usage

@@ -16,6 +16,10 @@
   },
   "main": "./astar.js",
   "homepage": "http://bgrins.github.io/javascript-astar",
+  "scripts": {
+    "test": "node test/node-tests.js && node test/equivalence.js",
+    "bench": "node --expose-gc bench/run-bench.js --impl=./astar.js --suites=core --out=results/optimized-core.json"
+  },
   "devDependencies": {
     "grunt": "~0.4.5",
     "grunt-contrib-qunit": "~0.5.0",
