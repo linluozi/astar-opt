@@ -22,9 +22,17 @@ function quantile(a, q) {
 }
 function pct(x) { return (x * 100).toFixed(1) + '%'; }
 
-const base = load(['results/base-core.json', 'results/base-rest.json']);
-const s1 = load(['results/s1-core.json']);
-const opt = load(['results/s2c-core.json', 'results/s2c-rest.json']);
+const argv = Object.fromEntries(process.argv.slice(2).map((a) => {
+  const m = /^--([^=]+)=(.*)$/.exec(a);
+  return m ? [m[1], m[2]] : [a, true];
+}));
+const baseFiles = (argv.base || 'results/final-base.json').split(',');
+const s1Files = (argv.s1 || 'results/s1-opt.json').split(',');
+const optFiles = (argv.opt || 'results/final-opt.json').split(',');
+const outFile = argv.out || 'results/analysis.json';
+const base = load(baseFiles);
+const s1 = load(s1Files);
+const opt = load(optFiles);
 
 const rows = [];
 for (const [id, b] of base) {
@@ -119,7 +127,7 @@ const total = {
 
 const out = { table, sizeTable, diagTable, stage, memory, heavy, mismatch: mismatch.map((r) => r.id), total, rows };
 fs.mkdirSync('results', { recursive: true });
-fs.writeFileSync('results/analysis.json', JSON.stringify(out, null, 1));
+fs.writeFileSync(outFile, JSON.stringify(out, null, 1));
 
 function line(s) {
   return `| ${s.label} | ${s.n} | ${s.median.toFixed(2)}× | ${s.p10.toFixed(2)}× | ${s.p90.toFixed(2)}× | ${s.baseMs.toFixed(1)} | ${s.optMs.toFixed(1)} | ${(s.baseMs / s.optMs).toFixed(2)}× |`;
