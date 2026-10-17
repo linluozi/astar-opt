@@ -145,6 +145,7 @@ var astar = {
     node.visited = false;
     node.closed = false;
     node.parent = null;
+    node._heapIndex = -1;
   }
 };
 
@@ -258,6 +259,7 @@ function GridNode(x, y, weight) {
   this.x = x;
   this.y = y;
   this.weight = weight;
+  this._heapIndex = -1;
 }
 
 GridNode.prototype.toString = function() {
@@ -285,6 +287,7 @@ BinaryHeap.prototype = {
   push: function(element) {
     // Add the new element to the end of the array.
     this.content.push(element);
+    element._heapIndex = this.content.length - 1;
 
     // Allow it to sink down.
     this.sinkDown(this.content.length - 1);
@@ -294,23 +297,35 @@ BinaryHeap.prototype = {
     var result = this.content[0];
     // Get the element at the end of the array.
     var end = this.content.pop();
+    result._heapIndex = -1;
     // If there are any elements left, put the end element at the
     // start, and let it bubble up.
     if (this.content.length > 0) {
       this.content[0] = end;
+      end._heapIndex = 0;
       this.bubbleUp(0);
     }
     return result;
   },
   remove: function(node) {
-    var i = this.content.indexOf(node);
+    var i = node._heapIndex;
+    // Fall back to a scan when the cached index is missing or stale, so
+    // remove() stays correct for elements that were never pushed by us.
+    if (i == null || i < 0 || this.content[i] !== node) {
+      i = this.content.indexOf(node);
+      if (i === -1) {
+        return;
+      }
+    }
 
     // When it is found, the process seen in 'pop' is repeated
-    // to fill up the hole.
+    // to fill the hole.
     var end = this.content.pop();
+    node._heapIndex = -1;
 
-    if (i !== this.content.length - 1) {
+    if (i < this.content.length) {
       this.content[i] = end;
+      end._heapIndex = i;
 
       if (this.scoreFunction(end) < this.scoreFunction(node)) {
         this.sinkDown(i);
@@ -323,7 +338,14 @@ BinaryHeap.prototype = {
     return this.content.length;
   },
   rescoreElement: function(node) {
-    this.sinkDown(this.content.indexOf(node));
+    var i = node._heapIndex;
+    if (i == null || i < 0 || this.content[i] !== node) {
+      i = this.content.indexOf(node);
+      if (i === -1) {
+        return;
+      }
+    }
+    this.sinkDown(i);
   },
   sinkDown: function(n) {
     // Fetch the element that has to be sunk.
@@ -339,6 +361,8 @@ BinaryHeap.prototype = {
       if (this.scoreFunction(element) < this.scoreFunction(parent)) {
         this.content[parentN] = element;
         this.content[n] = parent;
+        element._heapIndex = parentN;
+        parent._heapIndex = n;
         // Update 'n' to continue at the new position.
         n = parentN;
       }
@@ -386,6 +410,8 @@ BinaryHeap.prototype = {
       if (swap !== null) {
         this.content[n] = this.content[swap];
         this.content[swap] = element;
+        this.content[n]._heapIndex = n;
+        element._heapIndex = swap;
         n = swap;
       }
       // Otherwise, we are done.
