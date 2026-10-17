@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A* 优化实验 · javascript-astar · 从 O(n) 堆扫描到 O(log n)</title>
+<style>
+:root{
+  --paper:#F7F1E5; --paper2:#FBF7EF; --ink:#221D18; --muted:#7A6E62;
+  --rule:#DED3C2; --terra:#B8512C; --amber:#C98A2E; --sage:#6E7B5B;
+  --code:#241F19; --codeink:#F2E9DA;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;color:var(--ink);
+  background:
+    radial-gradient(1200px 600px at 12% -8%, #FFF8E9 0%, rgba(255,248,233,0) 60%),
+    radial-gradient(900px 500px at 92% 0%, #F3E4CE 0%, rgba(243,228,206,0) 55%),
+    var(--paper);
+  font-family:'PingFang SC','Microsoft YaHei',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  font-size:16px;line-height:1.75;
+  -webkit-font-smoothing:antialiased;
+}
+body:before{
+  content:"";position:fixed;inset:0;pointer-events:none;opacity:.045;z-index:0;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.wrap{max-width:1120px;margin:0 auto;padding:0 30px;position:relative;z-index:1}
+a{color:var(--terra);text-decoration:none;border-bottom:1px solid rgba(184,81,44,.3)}
+a:hover{border-bottom-color:var(--terra)}
+header{padding:64px 0 34px;border-bottom:1px solid var(--rule)}
+.kicker{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--terra);font-weight:700}
+h1{font-family:Georgia,'Songti SC',serif;font-size:52px;line-height:1.16;margin:18px 0 14px;letter-spacing:-.01em;font-weight:700}
+h1 em{font-style:normal;color:var(--terra)}
+.dek{font-size:18px;color:#4B4238;max-width:860px;margin:0 0 26px}
+.meta{display:flex;flex-wrap:wrap;gap:8px 22px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.meta b{color:var(--ink);font-weight:600}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--rule);border:1px solid var(--rule);margin:34px 0 8px}
+.metric{background:var(--paper2);padding:22px 20px 18px}
+.metric .v{font-family:Georgia,serif;font-size:38px;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.metric .v small{font-size:17px;color:var(--muted)}
+.metric .l{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.5}
+.metric.t .v{color:var(--terra)}
+.metric.a .v{color:#9A6A1F}
+main{padding:10px 0 40px}
+section{padding:46px 0 8px;border-bottom:1px solid var(--rule)}
+section:last-child{border-bottom:0}
+h2{font-family:Georgia,'Songti SC',serif;font-size:30px;margin:0 0 8px;letter-spacing:-.01em}
+h2 .num{font-size:13px;color:var(--terra);letter-spacing:.18em;display:block;margin-bottom:10px;font-family:'PingFang SC',sans-serif;font-weight:700}
+h3{font-size:18px;margin:30px 0 10px}
+p{margin:12px 0;max-width:900px}
+.lead{font-size:17px;color:#3E362D}
+.small{font-size:13.5px;color:var(--muted)}
+table{width:100%;border-collapse:collapse;margin:16px 0 8px;font-size:14px;font-variant-numeric:tabular-nums}
+th,td{padding:9px 10px;border-bottom:1px solid var(--rule);text-align:left;vertical-align:top}
+th{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;border-bottom:1.5px solid #CDBFA9}
+td.n,th.n{text-align:right;white-space:nowrap}
+tr:hover td{background:rgba(201,138,46,.05)}
+.accent{color:var(--terra);font-weight:700}
+.muted{color:var(--muted)}
+.note{border-left:3px solid var(--amber);background:rgba(201,138,46,.08);padding:14px 18px;margin:18px 0;font-size:14.5px;max-width:920px}
+.note.warn{border-left-color:var(--terra);background:rgba(184,81,44,.07)}
+.note b{color:var(--terra)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:28px}
+.card{border:1px solid var(--rule);background:rgba(251,247,239,.72);padding:20px 22px}
+.card h4{margin:0 0 6px;font-size:14px;letter-spacing:.04em}
+.card .big{font-family:Georgia,serif;font-size:28px;line-height:1.2}
+figure{margin:22px 0 10px}
+figure svg{width:100%;height:auto;display:block}
+figcaption{font-size:12.5px;color:var(--muted);margin-top:8px}
+code{font-family:'Cascadia Code',Consolas,'SFMono-Regular',monospace;font-size:.9em;background:rgba(34,29,24,.06);padding:1px 5px;border-radius:3px}
+pre{background:var(--code);color:var(--codeink);padding:18px 20px;overflow:auto;font-size:12.5px;line-height:1.65;border-radius:3px;margin:14px 0}
+pre code{background:none;padding:0;color:inherit;font-size:inherit}
+pre .c{color:#9E8E78}
+pre .k{color:#E2A15C}
+pre .s{color:#B9C48E}
+ol,ul{max-width:900px;padding-left:22px}
+li{margin:6px 0}
+.two-col{columns:2;column-gap:40px}
+.gallery{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:18px 0 8px}
+.gallery figure{margin:0}
+.gallery img{width:100%;display:block;border:1px solid var(--rule);background:#17130F}
+.gallery figcaption{margin-top:6px}
+.gallery figure:first-child{grid-column:1 / -1}
+.foot{padding:34px 0 60px;font-size:12.5px;color:var(--muted)}
+.tag{display:inline-block;font-size:11px;letter-spacing:.06em;padding:3px 8px;border:1px solid var(--rule);color:var(--muted);margin:0 6px 6px 0;border-radius:2px}
+.tag.ok{color:var(--sage);border-color:rgba(110,123,91,.4)}
+.tag.bad{color:var(--terra);border-color:rgba(184,81,44,.4)}
+hr.soft{border:0;border-top:1px dashed var(--rule);margin:26px 0}
+@media(max-width:820px){
+  h1{font-size:36px}.metrics{grid-template-columns:1fr 1fr}.grid2{grid-template-columns:1fr}
+  .wrap{padding:0 18px}.two-col{columns:1}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">Algorithm Optimization · 2026-10-17</div>
+  <h1>把 A* 的优先队列<br>从 <em>O(n)</em> 拉回 <em>O(log n)</em></h1>
+  <p class="dek">从 <b>bgrins/javascript-astar</b> 的真实源码出发：先测 104 个场景的基线，用 CPU profile 与插桩计数定位瓶颈，再做两级修改，最后用同一套测试证明路径代价与展开数一个都没变。</p>
+  <div class="meta">
+    <span>仓库 <b>bgrins/javascript-astar</b> @ <b>ef5ec96</b></span>
+    <span>许可证 <b>MIT</b></span>
+    <span>环境 <b>Windows 11 · Node v22.12.0</b></span>
+    <span>测量 <b>每场景独立进程 · A/B 交替 · 11 次 × 3 轮 · 中位/P95</b></span>
+  </div>
+  <div class="metrics">
+    <div class="metric t"><div class="v">1.22<small>×</small></div><div class="l">104 个场景的中位加速<br>聚合 1.36×（按耗时加权）</div></div>
+    <div class="metric a"><div class="v">1.43<small>×</small></div><div class="l">512×512 组聚合加速<br>19 个场景</div></div>
+    <div class="metric a"><div class="v">1.12<small>×</small></div><div class="l">S1（仅堆索引）在 512 组的聚合加速<br>18 个场景，合计 229 → 205 ms</div></div>
+    <div class="metric"><div class="v">0<small> / 104</small></div><div class="l">路径代价、展开数<br>与基线不一致的场景</div></div>
+  </div>
+</header>
+
+<main>
+
+<section id="verdict">
+  <h2><span class="num">00 · 结论先行</span>这次优化买到了什么</h2>
+  <p class="lead">原始实现每次改进一个邻居，都要在开放表里做一次 <code>Array.indexOf</code>。512×512、35% 障碍的单次搜索会触发 2,902 次 rescore，平均开放表 1,183 项，累计扫描 176 万个数组元素；8 方向 + octile 启发式的场景扫描量是 538 万。把位置缓存进堆元素之后，这一步变成 O(1) 定位 + O(log n) 下沉。</p>
+  <div class="grid2">
+    <div class="card"><h4>核心改动</h4><div class="big">2 级 · 2 个 commit</div>
+      <p class="small">S1 修堆：<code>_heapIndex</code> 替代 <code>indexOf</code>；S2 修热路径：内联 8 邻域、去掉每节点数组分配、堆直接比较 <code>.f</code>、<code>pathTo</code> 改 push+reverse、<code>cleanDirty</code> 只清两个标志。</p></div>
+    <div class="card"><h4>等价性</h4><div class="big">代价 / 展开数 100% 一致</div>
+      <p class="small">104 个基准场景、96 个差分检查、10 个上游 QUnit 断言全部通过；返回路径长度也一致。<code>Graph.neighbors()</code> 的节点顺序未变。</p></div>
+  </div>
+  <div class="note"><b>一句话：</b>这不是“换一个更快的算法”，而是把原实现里一个 2014 年就被报告、至今仍开着的 O(n) 操作（issue #31）真正修掉；搜索行为完全不变。</div>
+</section>
+
+<section id="repo">
+  <h2><span class="num">01 · 仓库核验</span>它值得改，而不是该被换掉</h2>
+  <p>按要求先核验首选仓库，而不是根据搜索摘要判断。以下信息来自 <code>git clone</code> 后的实际文件、<code>git log</code> 与 GitHub REST API（2026-10-17 抓取）。</p>
+  <table>
+    <thead><tr><th style="width:30%">项目</th><th>实际情况</th></tr></thead>
+    <tbody>
+      <tr><td>地址</td><td><a href="https://github.com/bgrins/javascript-astar">github.com/bgrins/javascript-astar</a></td></tr>
+      <tr><td>Stars / Forks / 未关闭 Issue+PR</td><td>1,391 / 315 / 36（API 返回值；archived = false）</td></tr>
+      <tr><td>许可证</td><td><b>MIT</b>。LICENSE 原文为标准的 “Permission is hereby granted, free of charge …” 条款，版权人 Brian Grinstead。</td></tr>
+      <tr><td>创建 / 最后代码提交</td><td>2010-09-15 / <b>2015-12-17</b>（<code>ef5ec96</code>，whitespace in test file）</td></tr>
+      <tr><td>提交数 / 标签</td><td>154 次提交；标签 0.0.1 → 0.4.1</td></tr>
+      <tr><td>运行依赖</td><td><b>无</b>。单文件 UMD，浏览器 &lt;script&gt; 或 Node <code>require</code> 均可；<code>main: ./astar.js</code>。</td></tr>
+      <tr><td>开发依赖</td><td>grunt ~0.4.5、grunt-contrib-qunit ~0.5.0、grunt-contrib-jshint ~0.10.0 —— 2015 年的工具链，qUnit 任务依赖 PhantomJS。</td></tr>
+      <tr><td>测试</td><td><code>test/tests.js</code> 共 10 个 QUnit 断言（基本路径、权重、对角、closest、多次搜索、GPS 自定义图）。用 Node shim 运行：<b>10/10 通过</b>。</td></tr>
+      <tr><td>CI</td><td><code>.travis.yml</code> 指定 Node 0.11 + <code>grunt default</code>；没有 GitHub Actions。这套配置停留在 PhantomJS 时代，现代 Node 上无法直接执行。</td></tr>
+      <tr><td>自带性能测试</td><td><code>benchmark/</code>：100/150/250/500 四张手绘地图 + 浏览器页面，循环 1000 次取平均；无 Node 版本、无统计量、无最优性校验。</td></tr>
+      <tr><td>近期活动</td><td><code>pushed_at</code> 2023-09-04；2023 年只有 ESM 导出 PR（#80）与一批 “Update …” PR，算法代码自 2015 年未变。</td></tr>
+    </tbody>
+  </table>
+
+  <h3>为什么没换仓库</h3>
+  <p>它同时满足四个条件：<b>有真实历史</b>（154 commits、6 个版本）、<b>有可运行代码</b>（零依赖、Node 直接跑）、<b>有测试基础</b>（10 个断言覆盖核心行为）、<b>许可证明确</b>（MIT）。403 行、一个文件，瓶颈可以被精确定位而不是靠猜。相比之下，换一个更大的路径搜索库会引入构建系统、图结构抽象和未知依赖，反而让“同一输入、同一环境、只改算法”的验证变难。</p>
+
+  <h3>相关 Issue / PR（真实存在，逐条读过）</h3>
+  <table>
+    <thead><tr><th style="width:12%">编号</th><th style="width:34%">标题</th><th>状态与本次关系</th></tr></thead>
+    <tbody>
+      <tr><td>#31</td><td>Replacing Binary Heap's indexOf</td><td>2014 年开，仍 open。报告者称 IonMonkey 下大部分时间花在内部 <code>indexOf</code>——<b>正是本次主瓶颈</b>。</td></tr>
+      <tr><td>#51</td><td>Diagonal heuristic computes square root of 2 every time</td><td>2016 年开，仍 open。改为 <code>Math.SQRT2</code> 常量，数值完全一致。</td></tr>
+      <tr><td>#52</td><td>Pathing randomly fails after first search (closed nodes not reset)</td><td>2016 年开。本次在 128² 地图上用 6 组端点反复搜索，<b>0 处差异，未复现</b>；但最小化重置后确实遇到 stale parent 风险，已显式切断。</td></tr>
+      <tr><td>#34</td><td>Sub-optimal pathing</td><td>已关闭。本次在 8 方向 + 默认曼哈顿启发式下复现 2.5–6.7% 次优（见第 06 节），与该类问题的表现一致。</td></tr>
+      <tr><td>#10</td><td>diagonal cost isn't taken into account</td><td>2012 年开。0.4.0 已按 <code>weight × 1.41421</code> 计费，描述已过时。</td></tr>
+      <tr><td>#82</td><td>Modernized fork released on npm: javascript-astarf</td><td>2025 年开。存在第三方现代化分支；为避免引入未审计差异，本次直接在原仓库上改。</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note warn"><b>许可证细节：</b>仓库整体是 MIT，但 README 明确写明 Binary Heap 来自 Marijn Haverbeke 的 Eloquent JavaScript 附录，原许可为 <b>CC BY 3.0</b>（需要署名）。源码注释与 README 都保留了出处，本次修改保留这些署名；如果要把代码用于闭源分发，建议单独确认这段 CC BY 代码的署名方式。</div>
+
+  <h3>能否安装 / 构建 / 运行</h3>
+  <p><b>能运行，不需要构建。</b>Node 22.12 下 <code>require('./astar.js')</code> 直接可用，10 个断言全部通过。<b>不能按 2015 年的方式跑 CI</b>：<code>grunt-contrib-qunit</code> 需要 PhantomJS 二进制，现代 Node 上不可用；因此本次新增了一个 40 行的 shim 来执行原断言，测试文件本身未改。依赖层面没有安全/版本冲突风险，因为运行时零依赖。</p>
+</section>
+
+<section id="method">
+  <h2><span class="num">02 · 基线方法</span>先让测量本身可信</h2>
+  <p>原始仓库只有“浏览器里循环 1000 次取平均”，没有种子、没有分位数、没有最优性校验。为了能比较，新增了一套独立的基准台，但<b>不改动被测量的算法</b>。</p>
+  <div class="grid2">
+    <div class="card"><h4>场景矩阵</h4><div class="big">104 个场景 · 7 组</div>
+      <p class="small">规模 64/128/256/512；障碍密度 0/10/20/30/35/40%；近/中/远三档起终点；4 向/8 向；权重 1 与 1–3；不可达、1×64 走廊、起终点相同、封闭目标、仓库自带 100/250/500 地图。</p></div>
+    <div class="card"><h4>统计口径</h4><div class="big">中位数 + P95</div>
+      <p class="small">固定种子（mulberry32）；每场景<b>独立子进程</b>；基线与优化版交替运行，2 次预热后测 11 次，共 3 轮；取轮中位数的中位，同时保留 P95；路径代价由独立 Dijkstra 校验。</p></div>
+  </div>
+  <h3>为什么必须独立进程</h3>
+  <p>最初在同一个进程里连续跑 48 个场景，512² 重负载从 25 ms 被抬高到 58 ms——上一个场景留下的 26 万节点图还没被回收，GC 落在下一次计时区间里。改成“一个场景一个子进程”后，基线与优化版走完全相同的路径，数字才可比。这是本次实验里最重要的测量修正。</p>
+  <h3>指标</h3>
+  <table>
+    <thead><tr><th style="width:26%">指标</th><th>采集方式</th></tr></thead>
+    <tbody>
+      <tr><td>单次搜索耗时</td><td><code>performance.now()</code>，只包住 <code>astar.search()</code>；建图、建堆、路径校验都在计时区外。</td></tr>
+      <tr><td>访问 / 展开节点</td><td>搜索后统计 <code>node.closed</code>（展开）与 <code>node.visited</code>（进过开放表）。</td></tr>
+      <tr><td>路径代价 / 长度</td><td>按 <code>GridNode.getCost()</code> 逐边累加；独立 Dijkstra 用相同移动语义（含 1.41421 对角代价、不禁止切角）给出最优值。</td></tr>
+      <tr><td>成功率 / 最优性</td><td>不可达返回空数组；gap = (cost − optimal) / optimal；同时校验路径连续、不过墙、终点正确。</td></tr>
+      <tr><td>内存</td><td><code>global.gc()</code> 后的 <code>heapUsed</code> 差值（分配压力代理），不是峰值 RSS。</td></tr>
+      <tr><td>可复现性</td><td>同一场景重复运行必须同代价；不同实现必须同代价、同展开数。</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="profile">
+  <h2><span class="num">03 · 瓶颈</span>不是“堆慢”，是堆里的线性扫描</h2>
+  <p>先跑 V8 CPU profile（12 次 512²/35% 搜索），再给原始算法加计数器（只加计数，不改逻辑），把“感觉慢”变成可核对的数字。</p>
+  <figure><svg viewBox="0 0 960 54" role="img" aria-label="基线 CPU profile 自身耗时占比"><rect x="0.0" y="8" width="435.3" height="24" fill="#B8512C" opacity="0.9"><title>search 自身 45.5%</title></rect><text x="218.4" y="25.0" font-size="10.5" fill="#FFF9EF" text-anchor="middle" font-weight="700" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">45.5%</text><rect x="436.8" y="8" width="105.1" height="24" fill="#9C8A76" opacity="0.9"><title>GC 11.1%</title></rect><text x="490.1" y="25.0" font-size="10.5" fill="#FFF9EF" text-anchor="middle" font-weight="700" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">11.1%</text><rect x="543.4" y="8" width="69.5" height="24" fill="#C98A2E" opacity="0.9"><title>cleanNode 7.4%</title></rect><text x="578.9" y="25.0" font-size="10.5" fill="#FFF9EF" text-anchor="middle" font-weight="700" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">7.4%</text><rect x="614.4" y="8" width="64.7" height="24" fill="#6E7B5B" opacity="0.9"><title>heap.pop 6.9%</title></rect><text x="647.5" y="25.0" font-size="10.5" fill="#FFF9EF" text-anchor="middle" font-weight="700" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">6.9%</text><rect x="680.6" y="8" width="50.3" height="24" fill="#B9AB98" opacity="0.9"><title>program 5.4%</title></rect><rect x="732.5" y="8" width="36.9" height="24" fill="#D2A24C" opacity="0.9"><title>markDirty 4.0%</title></rect><rect x="770.9" y="8" width="22.5" height="24" fill="#C9BCA8" opacity="0.9"><title>cleanDirty 2.5%</title></rect><rect x="794.9" y="8" width="7.1" height="24" fill="#8C7F6D" opacity="0.9"><title>heap.push 0.9%</title></rect><rect x="803.5" y="8" width="6.2" height="24" fill="#A99C89" opacity="0.9"><title>neighbors 0.8%</title></rect><rect x="811.2" y="8" width="146.3" height="24" fill="#E4D8C6" opacity="0.9"><title>其余 15.4%</title></rect><text x="885.1" y="25.0" font-size="10.5" fill="#FFF9EF" text-anchor="middle" font-weight="700" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">15.4%</text><text x="0.0" y="48.0" font-size="10.5" fill="#7A6E62" text-anchor="start" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">浅色段为其余 15.4%，含 buildMap/Graph 构造、模块加载等测量外壳</text></svg><figcaption>基线 CPU profile 自身耗时（采样 568.5 ms）。<code>search</code> 的 45.5% 里包含被 V8 内联的 <code>Array.indexOf</code>；<code>cleanNode</code> 7.4% 来自每次搜索前的脏节点重置。</figcaption></figure>
+  <h3>插桩计数：扫描量</h3>
+  <table>
+    <thead><tr><th>场景</th><th class="n">展开节点</th><th class="n">rescore 次数</th><th class="n">平均开放表</th><th class="n">indexOf 扫描元素</th></tr></thead>
+    <tbody>
+      <tr><td>512² · 35% 障碍 · 4 向</td><td class="n">67,189</td><td class="n">2,902</td><td class="n">1,183</td><td class="n accent">1,757,467</td></tr>
+      <tr><td>256² · 权重 1–3</td><td class="n">25,634</td><td class="n">3,713</td><td class="n">991</td><td class="n accent">2,217,108</td></tr>
+      <tr><td>512² · 8 向 + octile</td><td class="n">14,886</td><td class="n">10,421</td><td class="n">854</td><td class="n accent">5,383,711</td></tr>
+    </tbody>
+  </table>
+  <p>一个反直觉的点：8 方向 + 正确 octile 启发式的场景只展开 1.5 万节点，却因为改进频繁（1.04 万次 rescore）产生最多的扫描。也就是说，<b>“节点少”不等于“堆操作少”</b>；只看展开数会选错优化目标。</p>
+  <h3>被排除的候选</h3>
+  <ul>
+    <li><b>启发式错误？</b> 曼哈顿在 4 向、单位权重下可采纳且一致；对角模式则是真实的 API 陷阱（见第 06 节），但不是本次速度瓶颈。</li>
+    <li><b>重复入队 / 重复访问？</b> 原实现已经用 <code>rescoreElement</code> 做 decrease-key，没有重复入堆；问题在于 decrease-key 本身是 O(n)。</li>
+    <li><b>对象分配？</b> <code>Graph.neighbors()</code> 每次扩展新建一个数组，68k 次扩展就是 68k 个短命数组；profile 的 GC 11.1% 与之相关。</li>
+    <li><b>双向 A* / JPS？</b> 理论收益存在，但需要第二套节点状态与正确停止条件；JPS 只适用于均匀代价，会破坏权重语义。本次不做，列入后续。</li>
+  </ul>
+</section>
+
+<section id="changes">
+  <h2><span class="num">04 · 实施</span>两次小改动，每次都跑完整套</h2>
+  <p>优化在独立工作副本 <code>work/</code> 的 <code>optimize</code> 分支上进行，原始 0.4.1 保留在 <code>upstream/</code> 不动。每级都单独提交、单独跑 10 个断言 + 104 个基准场景。</p>
+
+  <h3>S1 · 堆位置缓存（commit <code>9d5a08c</code>）</h3>
+  <p><b>原瓶颈：</b><code>rescoreElement(node)</code> 每次调用 <code>this.content.indexOf(node)</code>，在 1,000+ 项的数组里线性找位置。<b>改法：</b>push 时记录 <code>_heapIndex</code>，pop / sink / bubble 的每次交换同步更新；rescore 直接取下标，失效时才回退扫描。<b>预期：</b>把 decrease-key 从 O(n) 降到 O(log n)。</p>
+  <pre><code><span class="c">// before</span>
+rescoreElement: function(node) {
+  this.sinkDown(this.content.indexOf(node));
+}
+
+<span class="c">// after</span>
+rescoreElement: function(node) {
+  var i = node._heapIndex;
+  if (i == null || i &lt; 0 || this.content[i] !== node) {
+    i = this.content.indexOf(node);
+    if (i === -1) return;
+  }
+  this.sinkDown(i);
+}</code></pre>
+  <p class="small">结果：512 组 18 个场景的合计耗时 <b>229.3 → 205.0 ms（聚合 1.12×）</b>。按场景中位只有 1.06×——因为其中一半是亚毫秒到几毫秒的对角线用例，固定开销盖过了堆扫描的收益。</p>
+
+  <h3>S2 · 热路径去分配（commit <code>d61474d</code>）</h3>
+  <p><b>原瓶颈：</b>每展开一个节点就 <code>graph.neighbors()</code> 新建数组；每次比较都调用 <code>scoreFunction</code> 闭包；<code>pathTo</code> 用 <code>unshift</code> 导致 O(L²)；<code>cleanDirty</code> 重置 7 个字段并为每次搜索新建数组。<b>改法：</b>对内置 <code>Graph</code> 直接展开 8 邻域（保持 W/E/S/N/SW/SE/NW/NE 顺序），自定义图仍走 <code>neighbors()</code>；堆直接比较 <code>.f</code>；<code>pathTo</code> 改 push+reverse；只清 <code>visited/closed</code> 并复用数组；<code>h</code> 只在首次访问时计算。</p>
+  <pre><code><span class="c">// 内联展开，避免每节点一个数组；顺序与原 neighbors() 完全一致</span>
+col = grid[x - 1];
+if (col) { nb = col[y]; if (nb) visit(nb, nb.weight); }
+col = grid[x + 1];
+if (col) { nb = col[y]; if (nb) visit(nb, nb.weight); }
+col = grid[x];
+nb = col[y - 1]; if (nb) visit(nb, nb.weight);
+nb = col[y + 1]; if (nb) visit(nb, nb.weight);
+<span class="c">// 对角：SW, SE, NW, NE（不是按列分组，否则会改变同分节点的出堆顺序）</span></code></pre>
+  <div class="note"><b>踩坑：</b>第一版把对角顺序写成 SW→NW→SE→NE，路径代价不变，但在“曼哈顿 + 8 向”这类不可采纳启发式的场景里展开数差了 1–2 个。恢复成与 <code>Graph.neighbors()</code> 完全相同的顺序后，104 个场景重新做到 0 差异。<b>同分节点的顺序也是行为的一部分。</b></div>
+  <figure><svg viewBox="0 0 960 260" role="img" aria-label="512 组的中位耗时阶段对比"><rect x="170.0" y="105.2" width="170" height="98.8" rx="3" fill="#7A6E62" opacity="0.45"/><text x="255.0" y="96.2" font-size="15" fill="#221D18" text-anchor="middle" font-weight="700" opacity="1" style="font-family:Georgia,'Times New Roman','Songti SC',serif;">1.00×</text><text x="255.0" y="224.0" font-size="12" fill="#221D18" text-anchor="middle" font-weight="600" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">0.4.1 基线</text><rect x="420.0" y="93.5" width="170" height="110.5" rx="3" fill="#C98A2E" opacity="0.92"/><text x="505.0" y="84.5" font-size="15" fill="#221D18" text-anchor="middle" font-weight="700" opacity="1" style="font-family:Georgia,'Times New Roman','Songti SC',serif;">1.12×</text><text x="505.0" y="224.0" font-size="12" fill="#221D18" text-anchor="middle" font-weight="600" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">S1 堆索引</text><text x="505.0" y="242.0" font-size="11" fill="#B8512C" text-anchor="middle" font-weight="700" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">+12%</text><rect x="670.0" y="74.7" width="170" height="129.3" rx="3" fill="#B8512C" opacity="0.92"/><text x="755.0" y="65.7" font-size="15" fill="#221D18" text-anchor="middle" font-weight="700" opacity="1" style="font-family:Georgia,'Times New Roman','Songti SC',serif;">1.31×</text><text x="755.0" y="224.0" font-size="12" fill="#221D18" text-anchor="middle" font-weight="600" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">S1 + S2</text><text x="755.0" y="242.0" font-size="11" fill="#B8512C" text-anchor="middle" font-weight="700" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">+31%</text><line x1="90" y1="204" x2="920" y2="204" stroke="#DED3C2"/><text x="90.0" y="20.0" font-size="11.5" fill="#7A6E62" text-anchor="start" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">512×512 核心组（18 个场景）的聚合加速</text></svg><figcaption>512×512 核心组 18 个场景的聚合加速：1.12× → 1.31×（各自与同批 A/B 基线比较）。若把特殊的 512² 全开阔场景也算进来，19 个 512 场景的聚合为 1.43×。S1 解决渐近复杂度，S2 解决常数项。</figcaption></figure>
+</section>
+
+<section id="results">
+  <h2><span class="num">05 · 结果</span>同一套输入，同一套参数</h2>
+  <p>下面是 104 个场景的正式结果（每场景独立进程，A/B 各 3 轮 × 11 次，取中位）。完整原始数据在 <code>results/</code>，可用 <code>bench/compare.js</code> 复算。</p>
+  <figure><svg viewBox="0 0 960 300" role="img" aria-label="按规模的中位与聚合加速比"><line x1="96.0" y1="28" x2="96.0" y2="252" stroke="#DED3C2" stroke-width="1" opacity="1"/><text x="96.0" y="270.0" font-size="11" fill="#7A6E62" text-anchor="middle" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">0.0×</text><line x1="254.5" y1="28" x2="254.5" y2="252" stroke="#DED3C2" stroke-width="1" opacity="0.55"/><text x="254.5" y="270.0" font-size="11" fill="#7A6E62" text-anchor="middle" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">0.5×</text><line x1="412.9" y1="28" x2="412.9" y2="252" stroke="#DED3C2" stroke-width="1" opacity="0.55"/><text x="412.9" y="270.0" font-size="11" fill="#7A6E62" text-anchor="middle" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">1.0×</text><line x1="571.4" y1="28" x2="571.4" y2="252" stroke="#DED3C2" stroke-width="1" opacity="0.55"/><text x="571.4" y="270.0" font-size="11" fill="#7A6E62" text-anchor="middle" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">1.5×</text><line x1="729.8" y1="28" x2="729.8" y2="252" stroke="#DED3C2" stroke-width="1" opacity="0.55"/><text x="729.8" y="270.0" font-size="11" fill="#7A6E62" text-anchor="middle" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">2.0×</text><line x1="888.3" y1="28" x2="888.3" y2="252" stroke="#DED3C2" stroke-width="1" opacity="0.55"/><text x="888.3" y="270.0" font-size="11" fill="#7A6E62" text-anchor="middle" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">2.5×</text><text x="508.0" y="292.0" font-size="11.5" fill="#7A6E62" text-anchor="middle" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">相对基线的加速比（中位数 / 聚合）</text><text x="82.0" y="54.4" font-size="12.5" fill="#221D18" text-anchor="end" font-weight="600" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">64×64</text><text x="82.0" y="68.4" font-size="10" fill="#7A6E62" text-anchor="end" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">n=21</text><rect x="96" y="35.4" width="398.7" height="11" rx="2" fill="#B8512C"/><rect x="96" y="51.4" width="405.5" height="7" rx="2" fill="#C98A2E" opacity="0.85"/><text x="502.7" y="45.4" font-size="11.5" fill="#B8512C" text-anchor="start" font-weight="700" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">1.26×</text><text x="509.5" y="58.4" font-size="10.5" fill="#9A6A1F" text-anchor="start" font-weight="600" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">1.28×</text><text x="82.0" y="99.2" font-size="12.5" fill="#221D18" text-anchor="end" font-weight="600" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">128×128</text><text x="82.0" y="113.2" font-size="10" fill="#7A6E62" text-anchor="end" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">n=19</text><rect x="96" y="80.19999999999999" width="389.1" height="11" rx="2" fill="#B8512C"/><rect x="96" y="96.19999999999999" width="410.1" height="7" rx="2" fill="#C98A2E" opacity="0.85"/><text x="493.1" y="90.2" font-size="11.5" fill="#B8512C" text-anchor="start" font-weight="700" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">1.23×</text><text x="514.1" y="103.2" font-size="10.5" fill="#9A6A1F" text-anchor="start" font-weight="600" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">1.29×</text><text x="82.0" y="144.0" font-size="12.5" fill="#221D18" text-anchor="end" font-weight="600" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">256×256</text><text x="82.0" y="158.0" font-size="10" fill="#7A6E62" text-anchor="end" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">n=40</text><rect x="96" y="125.0" width="394.9" height="11" rx="2" fill="#B8512C"/><rect x="96" y="141.0" width="406.1" height="7" rx="2" fill="#C98A2E" opacity="0.85"/><text x="498.9" y="135.0" font-size="11.5" fill="#B8512C" text-anchor="start" font-weight="700" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">1.25×</text><text x="510.1" y="148.0" font-size="10.5" fill="#9A6A1F" text-anchor="start" font-weight="600" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">1.28×</text><text x="82.0" y="188.8" font-size="12.5" fill="#221D18" text-anchor="end" font-weight="600" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">512×512</text><text x="82.0" y="202.8" font-size="10" fill="#7A6E62" text-anchor="end" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">n=19</text><rect x="96" y="169.79999999999998" width="342.8" height="11" rx="2" fill="#B8512C"/><rect x="96" y="185.79999999999998" width="452.0" height="7" rx="2" fill="#C98A2E" opacity="0.85"/><text x="446.8" y="179.8" font-size="11.5" fill="#B8512C" text-anchor="start" font-weight="700" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">1.08×</text><text x="556.0" y="192.8" font-size="10.5" fill="#9A6A1F" text-anchor="start" font-weight="600" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">1.43×</text><text x="82.0" y="233.6" font-size="12.5" fill="#221D18" text-anchor="end" font-weight="600" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">全部</text><text x="82.0" y="247.6" font-size="10" fill="#7A6E62" text-anchor="end" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">n=104</text><rect x="96" y="214.6" width="387.7" height="11" rx="2" fill="#B8512C"/><rect x="96" y="230.6" width="429.8" height="7" rx="2" fill="#C98A2E" opacity="0.85"/><text x="491.7" y="224.6" font-size="11.5" fill="#B8512C" text-anchor="start" font-weight="700" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">1.22×</text><text x="533.8" y="237.6" font-size="10.5" fill="#9A6A1F" text-anchor="start" font-weight="600" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">1.36×</text><rect x="96" y="14" width="10" height="6" rx="1" fill="#B8512C"/><text x="112.0" y="19.0" font-size="10.5" fill="#7A6E62" text-anchor="start" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">中位数</text><rect x="172" y="14" width="10" height="6" rx="1" fill="#C98A2E"/><text x="188.0" y="19.0" font-size="10.5" fill="#7A6E62" text-anchor="start" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">聚合（各场景中位耗时之和）</text></svg><figcaption>按规模分组的加速比。512 组的中位 1.08×、聚合 1.43×；64/128 的绝对耗时已在亚毫秒到几毫秒，受计时噪声影响更大。</figcaption></figure>
+  <table><thead><tr><th>规模</th><th class="n">场景数</th><th class="n">中位加速</th><th class="n">p10</th><th class="n">p90</th><th class="n">基线合计</th><th class="n">优化后合计</th><th class="n">聚合</th></tr></thead><tbody><tr><td><b>64²</b></td><td class="n">21</td><td class="n accent">1.26×</td><td class="n">1.00×</td><td class="n">1.54×</td><td class="n">9.6 ms</td><td class="n">7.5 ms</td><td class="n">1.28×</td></tr><tr><td><b>128²</b></td><td class="n">19</td><td class="n accent">1.23×</td><td class="n">0.85×</td><td class="n">1.73×</td><td class="n">23.7 ms</td><td class="n">18.3 ms</td><td class="n">1.29×</td></tr><tr><td><b>256²</b></td><td class="n">40</td><td class="n accent">1.25×</td><td class="n">1.07×</td><td class="n">1.48×</td><td class="n">157.3 ms</td><td class="n">122.8 ms</td><td class="n">1.28×</td></tr><tr><td><b>512²</b></td><td class="n">19</td><td class="n accent">1.08×</td><td class="n">0.90×</td><td class="n">1.79×</td><td class="n">236.5 ms</td><td class="n">165.8 ms</td><td class="n">1.43×</td></tr></tbody></table>
+  <p class="small">“聚合”= 该组所有场景中位耗时之和的比值，避免小场景把中位数拉平；中位数与聚合分别回答“典型场景快多少”和“整组总时间少多少”。</p>
+
+  <figure><svg viewBox="0 0 960 430" role="img" aria-label="基线 vs 优化后耗时散点图"><line x1="74.0" y1="18" x2="74.0" y2="378" stroke="#DED3C2" stroke-width="1" opacity="0.5"/><line x1="74" y1="378.0" x2="934" y2="378.0" stroke="#DED3C2" stroke-width="1" opacity="0.5"/><text x="74.0" y="396.0" font-size="10.5" fill="#7A6E62" text-anchor="middle" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">0.01</text><text x="64.0" y="382.0" font-size="10.5" fill="#7A6E62" text-anchor="end" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">0.01</text><line x1="300.3" y1="18" x2="300.3" y2="378" stroke="#DED3C2" stroke-width="1" opacity="0.5"/><line x1="74" y1="283.3" x2="934" y2="283.3" stroke="#DED3C2" stroke-width="1" opacity="0.5"/><text x="300.3" y="396.0" font-size="10.5" fill="#7A6E62" text-anchor="middle" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">0.1</text><text x="64.0" y="287.3" font-size="10.5" fill="#7A6E62" text-anchor="end" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">0.1</text><line x1="526.6" y1="18" x2="526.6" y2="378" stroke="#DED3C2" stroke-width="1" opacity="0.5"/><line x1="74" y1="188.5" x2="934" y2="188.5" stroke="#DED3C2" stroke-width="1" opacity="0.5"/><text x="526.6" y="396.0" font-size="10.5" fill="#7A6E62" text-anchor="middle" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">1</text><text x="64.0" y="192.5" font-size="10.5" fill="#7A6E62" text-anchor="end" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">1</text><line x1="752.9" y1="18" x2="752.9" y2="378" stroke="#DED3C2" stroke-width="1" opacity="0.5"/><line x1="74" y1="93.8" x2="934" y2="93.8" stroke="#DED3C2" stroke-width="1" opacity="0.5"/><text x="752.9" y="396.0" font-size="10.5" fill="#7A6E62" text-anchor="middle" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">10</text><text x="64.0" y="97.8" font-size="10.5" fill="#7A6E62" text-anchor="end" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">10</text><line x1="979.3" y1="18" x2="979.3" y2="378" stroke="#DED3C2" stroke-width="1" opacity="0.5"/><line x1="74" y1="-0.9" x2="934" y2="-0.9" stroke="#DED3C2" stroke-width="1" opacity="0.5"/><text x="979.3" y="396.0" font-size="10.5" fill="#7A6E62" text-anchor="middle" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">100</text><text x="64.0" y="3.1" font-size="10.5" fill="#7A6E62" text-anchor="end" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">100</text><line x1="74" y1="378" x2="934" y2="18" stroke="#6E7B5B" stroke-width="1.4" stroke-dasharray="5 4" opacity="0.8"/><text x="86.0" y="34.0" font-size="10.5" fill="#6E7B5B" text-anchor="start" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">y = x（无提升）</text><circle cx="403.6" cy="240.0" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|64|d0|orth4|s1: 0.29 → 0.29 ms</title></circle><circle cx="458.9" cy="223.8" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|64|d0|orth4|s2: 0.50 → 0.42 ms</title></circle><circle cx="460.5" cy="229.7" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|64|d0|orth4|s3: 0.51 → 0.37 ms</title></circle><circle cx="394.8" cy="253.7" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|64|d0|diag8|s1: 0.26 → 0.20 ms</title></circle><circle cx="389.8" cy="258.0" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|64|d0|diag8|s2: 0.25 → 0.18 ms</title></circle><circle cx="393.3" cy="260.0" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|64|d0|diag8|s3: 0.26 → 0.18 ms</title></circle><circle cx="476.7" cy="222.2" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|64|d0.2|orth4|s1: 0.60 → 0.44 ms</title></circle><circle cx="446.5" cy="221.5" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|64|d0.2|orth4|s2: 0.44 → 0.45 ms</title></circle><circle cx="478.5" cy="215.3" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|64|d0.2|orth4|s3: 0.61 → 0.52 ms</title></circle><circle cx="390.3" cy="247.1" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|64|d0.2|diag8|s1: 0.25 → 0.24 ms</title></circle><circle cx="402.7" cy="243.7" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|64|d0.2|diag8|s2: 0.28 → 0.26 ms</title></circle><circle cx="400.8" cy="251.5" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|64|d0.2|diag8|s3: 0.28 → 0.22 ms</title></circle><circle cx="469.6" cy="219.7" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|64|d0.35|orth4|s1: 0.56 → 0.47 ms</title></circle><circle cx="501.8" cy="226.9" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|64|d0.35|orth4|s2: 0.78 → 0.39 ms</title></circle><circle cx="453.0" cy="221.2" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|64|d0.35|orth4|s3: 0.47 → 0.45 ms</title></circle><circle cx="411.1" cy="244.2" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|64|d0.35|diag8|s1: 0.31 → 0.26 ms</title></circle><circle cx="404.5" cy="249.1" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|64|d0.35|diag8|s2: 0.29 → 0.23 ms</title></circle><circle cx="416.6" cy="251.8" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|64|d0.35|diag8|s3: 0.33 → 0.21 ms</title></circle><circle cx="579.2" cy="176.5" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|128|d0|orth4|s1: 1.71 → 1.34 ms</title></circle><circle cx="573.0" cy="177.5" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|128|d0|orth4|s2: 1.60 → 1.31 ms</title></circle><circle cx="583.9" cy="174.7" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|128|d0|orth4|s3: 1.79 → 1.40 ms</title></circle><circle cx="455.2" cy="224.7" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|128|d0|diag8|s1: 0.48 → 0.41 ms</title></circle><circle cx="378.4" cy="219.0" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|128|d0|diag8|s2: 0.22 → 0.48 ms</title></circle><circle cx="419.6" cy="227.1" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|128|d0|diag8|s3: 0.34 → 0.39 ms</title></circle><circle cx="611.0" cy="171.2" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|128|d0.2|orth4|s1: 2.36 → 1.53 ms</title></circle><circle cx="574.8" cy="184.6" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|128|d0.2|orth4|s2: 1.63 → 1.10 ms</title></circle><circle cx="568.0" cy="184.9" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|128|d0.2|orth4|s3: 1.52 → 1.09 ms</title></circle><circle cx="429.7" cy="225.1" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|128|d0.2|diag8|s1: 0.37 → 0.41 ms</title></circle><circle cx="406.5" cy="232.3" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|128|d0.2|diag8|s2: 0.29 → 0.35 ms</title></circle><circle cx="428.8" cy="234.9" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|128|d0.2|diag8|s3: 0.37 → 0.32 ms</title></circle><circle cx="535.2" cy="209.1" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|128|d0.35|orth4|s1: 1.09 → 0.61 ms</title></circle><circle cx="507.5" cy="219.1" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|128|d0.35|orth4|s2: 0.82 → 0.48 ms</title></circle><circle cx="523.6" cy="184.8" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|128|d0.35|orth4|s3: 0.97 → 1.10 ms</title></circle><circle cx="496.8" cy="200.7" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|128|d0.35|diag8|s1: 0.74 → 0.74 ms</title></circle><circle cx="466.3" cy="216.7" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|128|d0.35|diag8|s2: 0.54 → 0.50 ms</title></circle><circle cx="458.8" cy="235.6" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|128|d0.35|diag8|s3: 0.50 → 0.32 ms</title></circle><circle cx="619.4" cy="156.9" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|256|d0|orth4|s1: 2.57 → 2.16 ms</title></circle><circle cx="622.8" cy="161.8" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|256|d0|orth4|s2: 2.66 → 1.91 ms</title></circle><circle cx="622.2" cy="163.6" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|256|d0|orth4|s3: 2.64 → 1.83 ms</title></circle><circle cx="507.9" cy="210.3" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|256|d0|diag8|s1: 0.83 → 0.59 ms</title></circle><circle cx="477.7" cy="215.6" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|256|d0|diag8|s2: 0.61 → 0.52 ms</title></circle><circle cx="483.7" cy="207.1" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|256|d0|diag8|s3: 0.65 → 0.64 ms</title></circle><circle cx="658.7" cy="139.7" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|256|d0.2|orth4|s1: 3.83 → 3.28 ms</title></circle><circle cx="646.1" cy="147.5" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|256|d0.2|orth4|s2: 3.37 → 2.71 ms</title></circle><circle cx="703.1" cy="123.7" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|256|d0.2|orth4|s3: 6.02 → 4.83 ms</title></circle><circle cx="534.8" cy="214.5" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|256|d0.2|diag8|s1: 1.09 → 0.53 ms</title></circle><circle cx="497.3" cy="208.8" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|256|d0.2|diag8|s2: 0.74 → 0.61 ms</title></circle><circle cx="532.2" cy="199.0" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|256|d0.2|diag8|s3: 1.06 → 0.78 ms</title></circle><circle cx="822.1" cy="74.4" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|256|d0.35|orth4|s1: 20.21 → 16.00 ms</title></circle><circle cx="755.3" cy="100.4" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|256|d0.35|orth4|s2: 10.25 → 8.52 ms</title></circle><circle cx="791.6" cy="86.7" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|256|d0.35|orth4|s3: 14.82 → 11.87 ms</title></circle><circle cx="513.9" cy="201.6" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|256|d0.35|diag8|s1: 0.88 → 0.73 ms</title></circle><circle cx="518.4" cy="207.7" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|256|d0.35|diag8|s2: 0.92 → 0.63 ms</title></circle><circle cx="493.0" cy="201.0" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|256|d0.35|diag8|s3: 0.71 → 0.74 ms</title></circle><circle cx="835.0" cy="83.3" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|512|d0|orth4|s1: 23.04 → 12.89 ms</title></circle><circle cx="826.9" cy="84.1" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|512|d0|orth4|s2: 21.21 → 12.65 ms</title></circle><circle cx="827.6" cy="84.5" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|512|d0|orth4|s3: 21.36 → 12.54 ms</title></circle><circle cx="573.9" cy="180.7" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|512|d0|diag8|s1: 1.62 → 1.21 ms</title></circle><circle cx="550.1" cy="173.0" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|512|d0|diag8|s2: 1.27 → 1.46 ms</title></circle><circle cx="533.9" cy="184.4" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|512|d0|diag8|s3: 1.08 → 1.11 ms</title></circle><circle cx="826.9" cy="77.2" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|512|d0.2|orth4|s1: 21.22 → 14.96 ms</title></circle><circle cx="753.7" cy="111.5" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|512|d0.2|orth4|s2: 10.07 → 6.50 ms</title></circle><circle cx="810.0" cy="83.4" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|512|d0.2|orth4|s3: 17.87 → 12.87 ms</title></circle><circle cx="542.8" cy="179.0" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|512|d0.2|diag8|s1: 1.18 → 1.26 ms</title></circle><circle cx="538.2" cy="179.4" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|512|d0.2|diag8|s2: 1.12 → 1.25 ms</title></circle><circle cx="566.4" cy="167.4" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|512|d0.2|diag8|s3: 1.50 → 1.67 ms</title></circle><circle cx="842.4" cy="57.4" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|512|d0.35|orth4|s1: 24.84 → 24.22 ms</title></circle><circle cx="841.5" cy="59.1" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|512|d0.35|orth4|s2: 24.62 → 23.26 ms</title></circle><circle cx="839.4" cy="62.5" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|512|d0.35|orth4|s3: 24.11 → 21.40 ms</title></circle><circle cx="533.8" cy="187.1" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|512|d0.35|diag8|s1: 1.08 → 1.04 ms</title></circle><circle cx="563.9" cy="176.1" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|512|d0.35|diag8|s2: 1.46 → 1.35 ms</title></circle><circle cx="536.1" cy="187.8" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>core|512|d0.35|diag8|s3: 1.10 → 1.02 ms</title></circle><circle cx="627.3" cy="168.9" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>density|256|d0|g11: 2.79 → 1.61 ms</title></circle><circle cx="653.1" cy="147.0" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>density|256|d0.1|g11: 3.62 → 2.74 ms</title></circle><circle cx="638.9" cy="139.7" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>density|256|d0.2|g11: 3.13 → 3.27 ms</title></circle><circle cx="584.1" cy="176.8" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>density|256|d0.3|g11: 1.79 → 1.33 ms</title></circle><circle cx="721.8" cy="124.9" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>density|256|d0.4|g11: 7.28 → 4.69 ms</title></circle><circle cx="616.3" cy="173.2" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>density|256|d0|g12: 2.49 → 1.45 ms</title></circle><circle cx="642.1" cy="148.0" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>density|256|d0.1|g12: 3.24 → 2.68 ms</title></circle><circle cx="671.4" cy="138.6" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>density|256|d0.2|g12: 4.36 → 3.36 ms</title></circle><circle cx="588.8" cy="176.5" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>density|256|d0.3|g12: 1.88 → 1.34 ms</title></circle><circle cx="726.3" cy="120.6" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>density|256|d0.4|g12: 7.63 → 5.21 ms</title></circle><circle cx="458.8" cy="221.4" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>distance|256|near|s21: 0.50 → 0.45 ms</title></circle><circle cx="447.6" cy="224.4" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>distance|256|near|s22: 0.45 → 0.42 ms</title></circle><circle cx="512.2" cy="202.3" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>distance|256|mid|s21: 0.86 → 0.72 ms</title></circle><circle cx="515.9" cy="196.9" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>distance|256|mid|s22: 0.90 → 0.82 ms</title></circle><circle cx="604.4" cy="164.1" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>distance|256|far|s21: 2.21 → 1.81 ms</title></circle><circle cx="604.0" cy="162.5" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>distance|256|far|s22: 2.20 → 1.88 ms</title></circle><circle cx="614.5" cy="157.9" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>diagonal|256|octile|s31: 2.45 → 2.11 ms</title></circle><circle cx="638.3" cy="149.8" r="3.4" fill="#C98A2E" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>diagonal|256|octile|s32: 3.11 → 2.56 ms</title></circle><circle cx="653.1" cy="151.8" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>weights|256|w1|s41: 3.62 → 2.44 ms</title></circle><circle cx="593.0" cy="171.3" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>weights|256|w1|s42: 1.96 → 1.52 ms</title></circle><circle cx="778.5" cy="92.1" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>weights|256|w1-3|s41: 12.97 → 10.41 ms</title></circle><circle cx="786.1" cy="89.6" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>weights|256|w1-3|s42: 14.02 → 11.07 ms</title></circle><circle cx="209.5" cy="318.8" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>special|1x1|start=end: 0.04 → 0.04 ms</title></circle><circle cx="282.9" cy="297.1" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>special|1x64|corridor: 0.08 → 0.07 ms</title></circle><circle cx="472.1" cy="236.4" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>special|64x64|walled-target: 0.57 → 0.31 ms</title></circle><circle cx="561.6" cy="191.6" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>special|64x64|sealed-target: 1.43 → 0.93 ms</title></circle><circle cx="418.8" cy="219.3" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>special|64x64|start-on-wall: 0.33 → 0.47 ms</title></circle><circle cx="708.8" cy="126.9" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>special|128x128|full-wall: 6.38 → 4.48 ms</title></circle><circle cx="880.9" cy="82.4" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>special|512x512|open: 36.77 → 13.18 ms</title></circle><circle cx="517.8" cy="199.5" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>special|repo-100|(0,0)-&gt;(140,140): 0.91 → 0.77 ms</title></circle><circle cx="620.8" cy="172.3" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>special|repo-250|(0,0)-&gt;(140,140): 2.61 → 1.48 ms</title></circle><circle cx="589.4" cy="154.9" r="3.4" fill="#B8512C" fill-opacity="0.62" stroke="#FBF6EC" stroke-width="0.7"><title>special|repo-500|(0,0)-&gt;(140,140): 1.89 → 2.27 ms</title></circle><text x="504.0" y="422.0" font-size="11.5" fill="#7A6E62" text-anchor="middle" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">基线单次搜索耗时（ms，对数轴）</text><g transform="translate(16,198.0) rotate(-90)"><text x="0.0" y="0.0" font-size="11.5" fill="#7A6E62" text-anchor="middle" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">优化后（ms，对数轴）</text></g><circle cx="784" cy="360" r="3.4" fill="#B8512C" fill-opacity="0.8"/><text x="792.0" y="364.0" font-size="10.5" fill="#7A6E62" text-anchor="start" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">4 向</text><circle cx="844" cy="360" r="3.4" fill="#C98A2E" fill-opacity="0.9"/><text x="852.0" y="364.0" font-size="10.5" fill="#7A6E62" text-anchor="start" font-weight="400" opacity="1" style="font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif;">8 向</text></svg><figcaption>每个点是一个场景：横轴基线耗时、纵轴优化后耗时，双对数。虚线下方表示更快。104 个点里 86 个在虚线下方；18 个在线上，绝对耗时多在 0.02–3.1 ms，复测可在不同进程间摆动 2× 以上。</figcaption></figure>
+
+  <h3>代表性场景</h3>
+  <table><thead><tr><th>场景</th><th class="n">基线</th><th class="n">优化后</th><th class="n">加速</th><th class="n">展开节点</th><th class="n">路径代价</th></tr></thead><tbody><tr><td>512² · 无障碍 · 4 向</td><td class="n">21.21 ms</td><td class="n">12.65 ms</td><td class="n accent">1.68×</td><td class="n">35,062</td><td class="n">918.00</td></tr><tr><td>512² · 20% 障碍 · 4 向</td><td class="n">21.22 ms</td><td class="n">14.96 ms</td><td class="n accent">1.42×</td><td class="n">39,867</td><td class="n">918.00</td></tr><tr><td>512² · 35% 障碍 · 4 向</td><td class="n">24.84 ms</td><td class="n">24.22 ms</td><td class="n ">1.03×</td><td class="n">67,189</td><td class="n">970.00</td></tr><tr><td>512² · 35% 障碍 · 4 向 (seed 2)</td><td class="n">24.62 ms</td><td class="n">23.26 ms</td><td class="n ">1.06×</td><td class="n">66,552</td><td class="n">974.00</td></tr><tr><td>256² · 权重 1–3</td><td class="n">12.97 ms</td><td class="n">10.41 ms</td><td class="n ">1.25×</td><td class="n">25,634</td><td class="n">489.00</td></tr><tr><td>256² · 8 向 + octile</td><td class="n">2.45 ms</td><td class="n">2.11 ms</td><td class="n ">1.16×</td><td class="n">3,390</td><td class="n">332.64</td></tr><tr><td>256² · 35% 障碍</td><td class="n">20.21 ms</td><td class="n">16.00 ms</td><td class="n ">1.26×</td><td class="n">35,121</td><td class="n">534.00</td></tr><tr><td>仓库自带 500×500</td><td class="n">1.89 ms</td><td class="n">2.27 ms</td><td class="n muted">0.84×</td><td class="n">4,600</td><td class="n">280.00</td></tr><tr><td>256² · 40% 障碍</td><td class="n">7.28 ms</td><td class="n">4.69 ms</td><td class="n accent">1.55×</td><td class="n">13,304</td><td class="n">592.00</td></tr><tr><td>256² · 远距离</td><td class="n">2.21 ms</td><td class="n">1.81 ms</td><td class="n ">1.22×</td><td class="n">5,621</td><td class="n">458.00</td></tr><tr><td>128² · 8 向 + 默认启发式</td><td class="n">0.29 ms</td><td class="n">0.35 ms</td><td class="n muted">0.85×</td><td class="n">132</td><td class="n">171.42</td></tr></tbody></table>
+  <p>规律很清楚：<b>开放表越大、rescore 越多，收益越大</b>。同样是 512²、四方向：无障碍时 21.21 → 12.65 ms（1.68×），20% 障碍 1.42×，35% 障碍只剩 1.03×——此时展开数不变（67k），瓶颈回到节点扩展本身。8 方向 + octile 的 256² 场景为 1.16×。</p>
+
+  <h3>P95 与内存</h3>
+  <div class="grid2">
+    <div class="card"><h4>512² 无障碍 · P95</h4><div class="big">29.98 → 17.03 ms</div><p class="small">单次搜索的第 95 百分位耗时（seed 2），不是只优化了“最好的一次”。</p></div>
+    <div class="card"><h4>堆增量（≥256 规模，中位）</h4><div class="big">1315 → 417 KiB</div><p class="small">每次搜索的 <code>heapUsed</code> 增量，−68%。主要来自不再为每个节点创建邻居数组，以及脏节点数组复用。</p></div>
+  </div>
+
+  <h3>按测试组</h3>
+  <table><thead><tr><th>测试组</th><th class="n">场景</th><th class="n">中位加速</th><th class="n">p10</th><th class="n">p90</th><th class="n">聚合</th></tr></thead><tbody><tr><td>core</td><td class="n">72</td><td class="n accent">1.21×</td><td class="n">0.91×</td><td class="n">1.57×</td><td class="n">1.29×</td></tr><tr><td>density</td><td class="n">10</td><td class="n accent">1.38×</td><td class="n">0.96×</td><td class="n">1.71×</td><td class="n">1.38×</td></tr><tr><td>distance</td><td class="n">6</td><td class="n accent">1.14×</td><td class="n">1.07×</td><td class="n">1.22×</td><td class="n">1.17×</td></tr><tr><td>diagonal</td><td class="n">2</td><td class="n accent">1.19×</td><td class="n">1.16×</td><td class="n">1.22×</td><td class="n">1.19×</td></tr><tr><td>weights</td><td class="n">4</td><td class="n accent">1.28×</td><td class="n">1.25×</td><td class="n">1.48×</td><td class="n">1.28×</td></tr><tr><td>special</td><td class="n">10</td><td class="n accent">1.31×</td><td class="n">0.71×</td><td class="n">1.84×</td><td class="n">2.13×</td></tr></tbody></table>
+  <p class="small">各组中位在 1.14–1.38× 之间。权重场景 1.28×，与无权重的 core 1.21× 接近——优化没有“顺带”改变加权语义；distance 组 1.14× 偏低，因为其中多为几百次扩展的短路径。</p>
+</section>
+
+<section id="correctness">
+  <h2><span class="num">06 · 正确性</span>速度不能拿最优性换</h2>
+  <p>所有比较都使用同一张图、同一个起点/终点、同一个启发式。判定标准不是“看起来差不多”，而是：<b>路径代价完全相等（1e-9）、路径长度相等、展开节点数相等、路径连续且不穿墙</b>。</p>
+  <table>
+    <thead><tr><th style="width:30%">检查</th><th class="n">数量</th><th>结果</th></tr></thead>
+    <tbody>
+      <tr><td>基准场景（7 组）</td><td class="n">104</td><td><span class="tag ok">0 处代价 / 展开数差异</span></td></tr>
+      <tr><td>差分检查（优化版 vs 冻结 0.4.1）</td><td class="n">96</td><td><span class="tag ok">全部通过</span></td></tr>
+      <tr><td>上游 QUnit 断言</td><td class="n">10</td><td><span class="tag ok">10/10</span></td></tr>
+      <tr><td>同图重复搜索（6 组端点，复用 vs 新建）</td><td class="n">6</td><td><span class="tag ok">0 差异</span></td></tr>
+      <tr><td>Graph.neighbors() 顺序</td><td class="n">9</td><td><span class="tag ok">节点与顺序一致</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3>顺带发现的真实缺陷（未改，避免破坏兼容）</h3>
+  <p>8 方向移动时，原实现默认仍用曼哈顿距离。曼哈顿在 8 向图上是<b>不可采纳</b>的（对角一步只花 1.414，曼哈顿按 2 计），因此会返回次优路径。104 个场景中，8 向 + 默认启发式的 18 个场景出现 <b>2.5%–6.7%</b> 的代价差距；显式传 <code>heuristic: astar.heuristics.diagonal</code> 后差距为 0。</p>
+  <p>README 的示例本身传了对角启发式，所以这不是“库坏了”，而是默认值容易踩坑。本次<b>不改默认行为</b>——改了会改变所有依赖默认值的调用方；建议在使用处显式传参，或未来以 major 版本变更默认值。</p>
+  <div class="note"><b>关于 #52：</b>“第二次搜索失败”在 <code>ef5ec96</code> 上未能复现：6 组端点交替搜索，复用图与新建图的路径长度/代价完全一致。原因可能是 2014 年的 dirty-node 修复（<code>0d768b0</code>）已经覆盖。但把 <code>cleanDirty</code> 最小化后，确实出现过一个真实风险：起点若是上一轮扩展过的节点，<code>parent</code> 链会指回旧搜索，<code>pathTo</code> 会无限循环。已在 search 开头显式切断，并纳入差分测试。</div>
+</section>
+
+<section id="limits">
+  <h2><span class="num">07 · 否决与限制</span>没做的那部分，以及为什么</h2>
+  <h3>被数据否决的想法</h3>
+  <table>
+    <thead><tr><th style="width:30%">想法</th><th>测量结果</th><th>决定</th></tr></thead>
+    <tbody>
+      <tr><td>f 相等时偏向更大的 g（tie-break）</td><td>快速探针（7 次中位）：512² 无障碍展开 35,062 → 918，7.1 → 1.3 ms；512²/35% 障碍 19 → 22 ms</td><td>不默认启用：开阔图收益巨大，稠密图反而慢 15%，且改变同分顺序。</td></tr>
+      <tr><td>堆使用并行 Float64Array 存分数</td><td>快速探针：18.8–19.7 ms vs 17.8–19.2 ms，无统计意义上的收益</td><td>放弃：多一份状态，没有回报。</td></tr>
+      <tr><td>cleanDirty 重置全部 7 个字段</td><td>profile 中 cleanNode 7.4%，其中大部分是对即将被覆盖字段的 dead store</td><td>改为只清 visited/closed，复用数组。</td></tr>
+      <tr><td>双向 A* / JPS</td><td>未实现</td><td>双向需要第二套节点状态与正确停止条件；JPS 假设均匀代价，会破坏权重语义。列入后续，而不是硬塞进默认路径。</td></tr>
+    </tbody>
+  </table>
+
+  <h3>这份结果不能说明什么</h3>
+  <ul>
+    <li><b>只在 Node 22.12 / Windows 11 / 单线程上测过。</b>浏览器 JIT、Safari/Firefox、Worker 环境可能给出不同比值；代码是纯 JS，没有平台 API。</li>
+    <li><b>亚毫秒场景受计时噪声主导。</b>64² 组的 p10 只有 1.00×，个别用例 &lt;1×；仓库自带 500×500 的短路径 1.89 → 2.27 ms 也在噪声范围内。</li>
+    <li><b>内存是分配增量，不是峰值 RSS。</b>没有测 GC 次数、堆峰值或驻留集。</li>
+    <li><b>没有跑原始 Grunt/PhantomJS CI。</b>2015 年的工具链在现代 Node 上不可用；上游断言用 shim 执行，断言内容未改。</li>
+    <li><b>没有验证 2,000×2,000 以上或动态障碍。</b>O(n) → O(log n) 的收益会随开放表增大而更明显，但未实测。</li>
+    <li><b>没有改默认启发式。</b>这是行为兼容的决定，不是“没发现”。</li>
+  </ul>
+</section>
+
+<section id="gallery">
+  <h2><span class="num">08 · 图集</span>同一组数据的 PNG 版</h2>
+  <p>报告里的图是内联 SVG；下面这套 PNG 由 <code>build/gen_images.py</code> 从同一份 <code>results/</code> 生成，可直接用于 GitHub README、PPT 或分享。文件在 <code>images/</code>。</p>
+  <div class="gallery">
+    <figure><img src="images/cover.png" alt="A* performance fork cover"><figcaption>封面：O(n) → O(log n)</figcaption></figure>
+    <figure><img src="images/speedup-by-size.png" alt="speedup by size"><figcaption>按规模分组的加速比（中位 / 聚合）</figcaption></figure>
+    <figure><img src="images/scatter.png" alt="baseline vs optimized scatter"><figcaption>104 个场景：基线 vs 优化后</figcaption></figure>
+    <figure><img src="images/stage-attribution.png" alt="stage attribution"><figcaption>S1 / S2 的阶段归因</figcaption></figure>
+    <figure><img src="images/profile.png" alt="CPU profile"><figcaption>基线 CPU profile 自身耗时</figcaption></figure>
+  </div>
+</section>
+
+<section id="repro">
+  <h2><span class="num">09 · 复现</span>三组命令，从零到同款数字</h2>
+  <p>工作副本在 <code>astar-lab/work</code>，基线在 <code>astar-lab/upstream</code>（未改动），优化分支为 <code>optimize</code>。</p>
+  <pre><code><span class="c"># 1. 上游断言 + 96 个差分检查</span>
+cd work
+node test/node-tests.js
+node test/equivalence.js
+
+<span class="c"># 2. 基线与优化版：A/B 交替，每轮 11 次，3 轮，独立进程</span>
+B=bench/baseline/astar-0.4.1.js
+O=./astar.js
+S=core,density,distance,diagonal,weights,special,repeat
+node --expose-gc bench/paired.js --reps=11 --rounds=3 &#92;
+  --base=$B --opt=$O --suites=$S &#92;
+  --outBase=results/final-base.json &#92;
+  --outOpt=results/final-opt.json
+
+<span class="c"># 3. 逐场景对比 + 汇总</span>
+node bench/compare.js &#92;
+  --base=results/final-base.json --cand=results/final-opt.json
+node bench/analyze.js &#92;
+  --base=results/final-base.json &#92;
+  --opt=results/final-opt.json --out=results/analysis.json
+</code></pre>
+  <h3>文件</h3>
+  <table>
+    <thead><tr><th style="width:36%">路径</th><th>内容</th></tr></thead>
+    <tbody>
+      <tr><td><code>upstream/</code></td><td>原始克隆，<code>ef5ec96</code>，未修改</td></tr>
+      <tr><td><code>work/astar.js</code></td><td>优化后的单文件实现（403 → 470 行）</td></tr>
+      <tr><td><code>work/test/equivalence.js</code></td><td>与冻结 0.4.1 的 96 个差分检查</td></tr>
+      <tr><td><code>work/bench/</code></td><td>场景生成、Dijkstra 参考、隔离测量、对比与汇总</td></tr>
+      <tr><td><code>work/OPTIMIZATION.md</code></td><td>仓库内的优化说明（英文，含复现命令）</td></tr>
+      <tr><td><code>results/</code></td><td>原始运行记录、final-runs.csv、summary.md、analysis.json</td></tr>
+    </tbody>
+  </table>
+  <p class="small">提交：<code>9d5a08c</code> S1 堆索引 · <code>d61474d</code> S2 热路径 · <code>767bec4</code> 测试与基准 · 工作副本基于 <code>ef5ec96</code>，仅多一个换行规范化提交。</p>
+</section>
+
+</main>
+
+<footer class="foot">
+  <p>数据快照：2026-10-17。环境：win32/x64，AMD Ryzen 7 H 255 w/ Radeon 780M Graphics × 16，Node v22.12.0，V8 12.4。<br>
+  所有耗时来自本机实测；不同机器请比较比值而非绝对毫秒。报告与图表由 <code>build/gen_report.py</code> 从 <code>results/</code> 直接生成，无外部资源。</p>
+</footer>
+
+</div>
+</body>
+</html>

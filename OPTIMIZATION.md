@@ -44,6 +44,8 @@ V8 CPU profile of 12 searches on 512²/35% walls, baseline:
 11.1%  GC
 ```
 
+![baseline CPU profile](docs/images/profile.png)
+
 Instrumented copy (same algorithm, counters only):
 
 | case | expanded | rescore calls | avg open list | elements scanned by `indexOf` |
@@ -89,6 +91,8 @@ because half of that group is 1–3 ms diagonal cases dominated by fixed overhea
   `h` is computed once on first visit.
 * The start node's `parent` is cut explicitly because `cleanDirty()` no longer
   clears every field.
+
+![stage attribution](docs/images/stage-attribution.png)
 
 Combined S1+S2 on the same 18 scenarios, measured in a separate paired run:
 199.7 → 152.7 ms (**1.31× aggregate**). Each stage is compared against its own

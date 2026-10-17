@@ -1,15 +1,34 @@
 # javascript-astar
 
-## An implementation of the A* Search Algorithm in JavaScript
+![A* performance fork — O(n) → O(log n)](docs/images/cover.png)
 
-> **Performance fork:** this branch removes the O(n) `indexOf` scan from the
-> binary heap and the per-node neighbour array allocation, while keeping the
-> same API and the same search results. Paired A/B benchmark: 1.22× median /
-> 1.36× aggregate across 104 scenarios, 1.43× on the 512×512 group, zero
-> cost/expansion mismatches. See [OPTIMIZATION.md](OPTIMIZATION.md) for
-> evidence, rejected ideas and repro commands.
+**Same paths, less time.** A performance fork of
+[bgrins/javascript-astar](https://github.com/bgrins/javascript-astar) 0.4.1 that
+removes the O(n) `Array.indexOf` scan from the binary heap and the per-node
+neighbour array allocation — without changing the API or the search results.
 
-See a demo at http://www.briangrinstead.com/files/astar/
+[![tests](https://github.com/linluozi/astar-opt/actions/workflows/test.yml/badge.svg)](https://github.com/linluozi/astar-opt/actions/workflows/test.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-B8512C.svg)](LICENSE)
+
+| metric | value |
+|---|---|
+| median speedup, 104 scenarios | **1.22×** (aggregate 1.36×) |
+| 512×512 group (19 scenarios) | **1.43×** aggregate |
+| 512×512, 4-dir, no walls | **1.70×** (21.2 → 12.7 ms) |
+| correctness | **0 / 104** cost or expansion mismatches |
+| heap churn per search | **1,315 → 417 KiB (−68%)** |
+
+![speedup by size](docs/images/speedup-by-size.png)
+
+![baseline vs optimized, 104 scenarios](docs/images/scatter.png)
+
+**Read more:** [OPTIMIZATION.md](OPTIMIZATION.md) (method, profile, rejected
+ideas, caveats) · [generated report](https://linluozi.github.io/astar-opt/)
+(Chinese, single page) · [raw per-scenario data](results/final-runs.csv).
+
+The benchmark is a paired A/B run: baseline and optimized alternate in separate
+processes, 11 searches per round, 3 rounds, median of round medians. Path cost,
+path length and expansion count are identical to the original in every scenario.
 
 ## Sample Usage
 
