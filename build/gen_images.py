@@ -12,7 +12,7 @@ from matplotlib.ticker import FuncFormatter
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "docs" / "images"
+OUT = ROOT / "report" / "images"
 OUT.mkdir(parents=True, exist_ok=True)
 
 A = json.loads((ROOT / "results" / "analysis-final.json").read_text(encoding="utf-8"))
