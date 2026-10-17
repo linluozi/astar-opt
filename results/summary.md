@@ -35,12 +35,10 @@ Sum of per-scenario medians: 432.7 ms -> 319.1 ms (1.36×)
 | 4-dir | 66 | 1.27× | 1.00× | 1.73× | 401.9 | 291.4 | 1.38× |
 | 8-dir | 38 | 1.15× | 0.87× | 1.46× | 30.8 | 27.7 | 1.11× |
 
-## Stage attribution
-
-| set | n | baseline | S1 | S2 | S1 speedup | S2 speedup |
-|---|---:|---:|---:|---:|---:|---:|
-| 512 only | 18 | 229.3 ms | 205.0 ms | 152.7 ms | 1.06× (sum 1.12×) | 1.08× (sum 1.31×) |
+## Stage attribution (512 core, aggregate speedup)
+| set | n | S1 only | S1 + S2 |
+|---|---:|---:|---:|
+| 512 only | 18 | 1.12× | 1.31× |
 
 ## Memory (median heap delta, size >= 256)
-
 baseline 1315 KiB -> optimized 417 KiB

@@ -26,9 +26,9 @@ const argv = Object.fromEntries(process.argv.slice(2).map((a) => {
   const m = /^--([^=]+)=(.*)$/.exec(a);
   return m ? [m[1], m[2]] : [a, true];
 }));
-const baseFiles = (argv.base || 'results/final-base.json').split(',');
+const baseFiles = (argv.base || 'results/base-core.json,results/base-rest.json').split(',');
 const s1Files = (argv.s1 || 'results/s1-opt.json').split(',');
-const optFiles = (argv.opt || 'results/final-opt.json').split(',');
+const optFiles = (argv.opt || 'results/s2c-core.json,results/s2c-rest.json').split(',');
 const outFile = argv.out || 'results/analysis.json';
 const base = load(baseFiles);
 const s1 = load(s1Files);
@@ -79,37 +79,31 @@ const table = [...bySuite.entries()].map(([k, v]) => stats(k, v));
 const sizeTable = [...bySize.entries()].map(([k, v]) => stats(String(k), v)).sort((a, b) => +a.label - +b.label);
 const diagTable = [...byDiag.entries()].map(([k, v]) => stats(k, v));
 
-// stage attribution on core
+// stage attribution on the 512 core subset (paired runs, ratios only)
+const s1base = load((argv.s1base || 'results/s1-base.json').split(','));
 const stageRows = [];
-for (const [id, b] of base) {
-  if (b.suite !== 'core') continue;
+for (const [id, b] of s1base) {
   const a = s1.get(id);
   const o = opt.get(id);
-  if (!a || !o) continue;
-  stageRows.push({ id, base: b.msMedian, s1: a.msMedian, s2: o.msMedian });
+  const fb = base.get(id);
+  if (!a || !o || !fb) continue;
+  stageRows.push({ id, b: b.msMedian, a: a.msMedian, fb: fb.msMedian, o: o.msMedian });
 }
-const stageBig = stageRows.filter((r) => r.id.includes('|512|'));
-function stageStats(list) {
-  return {
-    n: list.length,
-    base: median(list.map((r) => r.base)),
-    s1: median(list.map((r) => r.s1)),
-    s2: median(list.map((r) => r.s2)),
-    s1Speedup: median(list.map((r) => r.base / r.s1)),
-    s2Speedup: median(list.map((r) => r.base / r.s2)),
-    s1Sum: list.reduce((a, r) => a + r.base, 0) / list.reduce((a, r) => a + r.s1, 0),
-    s2Sum: list.reduce((a, r) => a + r.base, 0) / list.reduce((a, r) => a + r.s2, 0),
-  };
-}
-const stage = { all: stageStats(stageRows), big: stageStats(stageBig) };
-
-const heavies = rows.filter((r) => r.size >= 256).sort((a, b) => b.baseMs - a.baseMs);
-const memory = {
-  base: median(heavies.map((r) => r.baseHeap)),
-  opt: median(heavies.map((r) => r.optHeap)),
+const stage = {
+  n: stageRows.length,
+  base: 1,
+  s1: 1,
+  s2: 1,
+  s1Speedup: median(stageRows.map((r) => r.b / r.a)),
+  s2Speedup: median(stageRows.map((r) => r.fb / r.o)),
+  s1Sum: stageRows.reduce((x, r) => x + r.b, 0) / stageRows.reduce((x, r) => x + r.a, 0),
+  s2Sum: stageRows.reduce((x, r) => x + r.fb, 0) / stageRows.reduce((x, r) => x + r.o, 0),
+  baseTotal: stageRows.reduce((x, r) => x + r.b, 0),
+  s1Total: stageRows.reduce((x, r) => x + r.a, 0),
+  s2Total: stageRows.reduce((x, r) => x + r.o, 0),
 };
+const stageAll = { all: stage, big: stage };
 
-const mismatch = rows.filter((r) => !r.same);
 const heavyRows = rows.filter((r) => r.size >= 256);
 const heavy = {
   n: heavyRows.length,
@@ -118,6 +112,12 @@ const heavy = {
   baseP95: median(heavyRows.map((r) => r.baseP95)),
   optP95: median(heavyRows.map((r) => r.optP95)),
 };
+const heavies = rows.filter((r) => r.size >= 256).sort((a, b) => b.baseMs - a.baseMs);
+const memory = {
+  base: median(heavies.map((r) => r.baseHeap)),
+  opt: median(heavies.map((r) => r.optHeap)),
+};
+const mismatch = rows.filter((r) => !r.same);
 const total = {
   scenarios: rows.length,
   baseMs: rows.reduce((a, r) => a + r.baseMs, 0),
@@ -125,7 +125,7 @@ const total = {
   speedup: rows.reduce((a, r) => a + r.baseMs, 0) / rows.reduce((a, r) => a + r.optMs, 0),
 };
 
-const out = { table, sizeTable, diagTable, stage, memory, heavy, mismatch: mismatch.map((r) => r.id), total, rows };
+const out = { table, sizeTable, diagTable, stage: stageAll, memory, heavy, mismatch: mismatch.map((r) => r.id), total, rows };
 fs.mkdirSync('results', { recursive: true });
 fs.writeFileSync(outFile, JSON.stringify(out, null, 1));
 
@@ -135,7 +135,7 @@ function line(s) {
 const md = [];
 md.push('# Baseline vs optimized\n');
 md.push(`Scenarios: ${total.scenarios}, mismatches: ${mismatch.length}\n`);
-md.push(`Sum of medians: ${total.baseMs.toFixed(1)} ms -> ${total.optMs.toFixed(1)} ms (${total.speedup.toFixed(2)}×)\n`);
+md.push(`Sum of per-scenario medians: ${total.baseMs.toFixed(1)} ms -> ${total.optMs.toFixed(1)} ms (${total.speedup.toFixed(2)}×)\n`);
 md.push('## By suite\n');
 md.push('| suite | n | median | p10 | p90 | base ms (sum) | new ms (sum) | total |');
 md.push('|---|---:|---:|---:|---:|---:|---:|---:|');
@@ -148,13 +148,13 @@ md.push('\n## By movement\n');
 md.push('| mode | n | median | p10 | p90 | base ms (sum) | new ms (sum) | total |');
 md.push('|---|---:|---:|---:|---:|---:|---:|---:|');
 diagTable.forEach((s) => md.push(line(s)));
-md.push('\n## Stage attribution\n');
-md.push('| set | n | baseline | S1 | S2 | S1 speedup | S2 speedup |');
-md.push('|---|---:|---:|---:|---:|---:|---:|');
-for (const [k, s] of [['all core', stage.all], ['512 only', stage.big]]) {
-  md.push(`| ${k} | ${s.n} | ${s.base.toFixed(2)} ms | ${s.s1.toFixed(2)} ms | ${s.s2.toFixed(2)} ms | ${s.s1Speedup.toFixed(2)}× (sum ${s.s1Sum.toFixed(2)}×) | ${s.s2Speedup.toFixed(2)}× (sum ${s.s2Sum.toFixed(2)}×) |`);
-}
-md.push('\n## Memory (median heap delta, size >= 256)\n');
+md.push('');
+md.push('## Stage attribution (512 core, aggregate speedup)');
+md.push('| set | n | S1 only | S1 + S2 |');
+md.push('|---|---:|---:|---:|');
+md.push(`| 512 only | ${stage.n} | ${stage.s1Sum.toFixed(2)}× | ${stage.s2Sum.toFixed(2)}× |`);
+md.push('');
+md.push('## Memory (median heap delta, size >= 256)');
 md.push(`baseline ${(memory.base / 1024).toFixed(0)} KiB -> optimized ${(memory.opt / 1024).toFixed(0)} KiB`);
 fs.writeFileSync('results/summary.md', md.join('\n'));
 console.log(md.join('\n'));

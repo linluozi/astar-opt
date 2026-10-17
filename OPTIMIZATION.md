@@ -75,8 +75,8 @@ rescoreElement: function(node) {
 ```
 
 Effect on the 18 core 512×512 scenarios: total time 229.3 → 205.0 ms
-(**1.12× aggregate**, 1.06× median). The median is low because half of that
-group is 1–3 ms diagonal cases dominated by fixed overhead.
+(**1.12× aggregate**, 1.06× median) in its own paired run. The median is low
+because half of that group is 1–3 ms diagonal cases dominated by fixed overhead.
 
 ### S2 — no allocation in the expansion loop
 
@@ -90,7 +90,9 @@ group is 1–3 ms diagonal cases dominated by fixed overhead.
 * The start node's `parent` is cut explicitly because `cleanDirty()` no longer
   clears every field.
 
-Combined S1+S2 on the same 18 scenarios: 229.3 → 152.7 ms (**1.31× aggregate**).
+Combined S1+S2 on the same 18 scenarios, measured in a separate paired run:
+199.7 → 152.7 ms (**1.31× aggregate**). Each stage is compared against its own
+same-batch baseline because the machine drifts between runs.
 
 ### Correctness
 
